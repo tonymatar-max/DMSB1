@@ -150,39 +150,45 @@ if (Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
     app.MapFallbackToFile("index.html");
 }
 
-if (app.Environment.IsDevelopment())
+// No EF Core migrations exist yet for this phase; EnsureCreated stands the schema up from the
+// current model directly. This must run in every environment — not just Development — or a
+// published build has no database at all. Switch to db.Database.Migrate() once migrations exist.
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<NexusDocsDbContext>();
-
-    // No EF Core migrations exist yet for this phase; EnsureCreated stands the schema up from the
-    // current model directly. Switch to db.Database.Migrate() once migrations are added.
     db.Database.EnsureCreated();
 
-    // IgnoreQueryFilters(): this runs with no ambient tenant (no HTTP request in flight), so the
-    // normal tenant query filter would make Users.Any() look empty on every run and re-seed a
-    // duplicate dev tenant/user each time the app starts.
-    if (!db.Users.IgnoreQueryFilters().Any())
+    if (app.Environment.IsDevelopment())
     {
-        var devTenant = new Tenant { Name = "Nexus Docs Dev Tenant", Slug = "dev" };
-        var (hash, salt) = PasswordHasher.Hash("ChangeMe123!");
-        var devUser = new User
+        // IgnoreQueryFilters(): this runs with no ambient tenant (no HTTP request in flight), so
+        // the normal tenant query filter would make Users.Any() look empty on every run and
+        // re-seed a duplicate dev tenant/user each time the app starts.
+        if (!db.Users.IgnoreQueryFilters().Any())
         {
-            TenantId = devTenant.Id,
-            Email = "admin@nexusdocs.dev",
-            DisplayName = "Dev Admin",
-            PasswordHash = hash,
-            PasswordSalt = salt,
-        };
+            var devTenant = new Tenant { Name = "Nexus Docs Dev Tenant", Slug = "dev" };
+            var (hash, salt) = PasswordHasher.Hash("ChangeMe123!");
+            var devUser = new User
+            {
+                TenantId = devTenant.Id,
+                Email = "admin@nexusdocs.dev",
+                DisplayName = "Dev Admin",
+                PasswordHash = hash,
+                PasswordSalt = salt,
+            };
 
-        db.Tenants.Add(devTenant);
-        db.Users.Add(devUser);
-        db.SaveChanges();
+            db.Tenants.Add(devTenant);
+            db.Users.Add(devUser);
+            db.SaveChanges();
 
-        app.Logger.LogWarning(
-            "Seeded dev tenant {TenantSlug} and user {Email} (password: ChangeMe123!) — dev only.",
-            devTenant.Slug, devUser.Email);
+            app.Logger.LogWarning(
+                "Seeded dev tenant {TenantSlug} and user {Email} (password: ChangeMe123!) — dev only.",
+                devTenant.Slug, devUser.Email);
+        }
     }
+    // Production has no seeded user by design — a hardcoded password has no business existing
+    // outside dev. There is no tenant/user provisioning flow yet; that is Phase 2+ scope. Until
+    // then, standing up a real environment means inserting a first tenant/user by hand (or via
+    // DesignTimeDbContextFactory + a one-off script) with a real password.
 }
 
 app.Run();
