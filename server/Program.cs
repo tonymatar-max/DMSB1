@@ -163,13 +163,12 @@ if (Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
     app.MapFallbackToFile("index.html");
 }
 
-// No EF Core migrations exist yet for this phase; EnsureCreated stands the schema up from the
-// current model directly. This must run in every environment — not just Development — or a
-// published build has no database at all. Switch to db.Database.Migrate() once migrations exist.
+// Applies pending migrations (creating the database on first run). Must run in every
+// environment, not just Development, or a published build has no database at all.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<NexusDocsDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 
     if (app.Environment.IsDevelopment())
     {
