@@ -124,9 +124,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    // Only needed when the client runs on its own Vite dev server (a different origin). In
+    // production the API serves the built SPA itself, so there is no cross-origin call to allow.
+    app.UseCors(DevCorsPolicy);
 }
 
-app.UseCors(DevCorsPolicy);
+// The published SPA is copied into wwwroot (see deploy/publish.ps1), so one service serves both
+// the API and the app and there is no second web server to install or keep in step.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseAuthentication();
 // Must run after UseAuthentication (reads the "tenant" claim off HttpContext.User) and before
@@ -136,6 +142,13 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Client-side routes such as /cabinets/{id} are not files on disk; anything that is not an API
+// call or a real static file falls through to the SPA so a refresh or a shared link works.
+if (Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
+{
+    app.MapFallbackToFile("index.html");
+}
 
 if (app.Environment.IsDevelopment())
 {

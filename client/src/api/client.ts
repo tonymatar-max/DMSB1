@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+// Same-origin in every environment: the API serves this SPA directly from wwwroot in production,
+// and the Vite dev server proxies /api to the API (see vite.config.ts) in development. Call sites
+// already include the "/api/..." prefix, so this stays empty rather than "/api".
+const baseURL = import.meta.env.VITE_API_URL ?? '';
 
 const apiClient = axios.create({
   baseURL,
