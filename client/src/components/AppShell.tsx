@@ -43,10 +43,15 @@ export default function AppShell({ children }: AppShellProps) {
           <NavLink to="/search" className={navLinkClass}>
             Search
           </NavLink>
-          <span className="nav-item disabled">
+          <NavLink to="/requisitions" className={navLinkClass}>
+            Requisitions
+          </NavLink>
+          <NavLink to="/workflow-definitions" className={navLinkClass}>
+            Workflow Designer
+          </NavLink>
+          <NavLink to="/approvals" className={navLinkClass}>
             Approvals
-            <span className="nav-badge">Coming in Flow</span>
-          </span>
+          </NavLink>
           <span className="nav-item disabled">Sign</span>
         </nav>
 

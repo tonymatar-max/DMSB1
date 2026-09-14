@@ -196,6 +196,11 @@
   box-shadow: var(--shadow);
   padding: 20px;
 }
+.modal-panel.wide {
+  max-width: 720px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
 .modal-panel h2 {
   font-size: 16px;
   font-weight: 700;
@@ -213,6 +218,56 @@
   gap: 8px;
   margin-top: 18px;
 }
+.btn.sm {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field-row > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stage-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.approver-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.approver-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.approver-row > select {
+  max-width: 220px;
+  flex: none;
+}
+.approver-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
 .form-grid {
   display: flex;
   flex-direction: column;

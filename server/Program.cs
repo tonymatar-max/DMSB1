@@ -10,6 +10,7 @@ using NexusDocs.Api.Infrastructure.Audit;
 using NexusDocs.Api.Infrastructure.Auth;
 using NexusDocs.Api.Infrastructure.Erp;
 using NexusDocs.Api.Infrastructure.Files;
+using NexusDocs.Api.Infrastructure.Flow;
 using NexusDocs.Api.Infrastructure.Licensing;
 using NexusDocs.Api.Infrastructure.Tenancy;
 
@@ -72,14 +73,26 @@ builder.Services.AddSingleton<JwtTokenService>();
 // --- Domain services ---------------------------------------------------------------------------
 builder.Services.AddScoped<LicenseService>();
 builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
 
 // Typed HttpClient: registers both the HttpClient for SapB1ServiceLayerAdapter and
 // IErpAdapter -> SapB1ServiceLayerAdapter in one call.
 builder.Services.AddHttpClient<IErpAdapter, SapB1ServiceLayerAdapter>();
 
+// --- Background workers -------------------------------------------------------------------------
+builder.Services.AddHostedService<FlowTimerWorker>();
+
 // --- MVC / Swagger / CORS -----------------------------------------------------------------------
-builder.Services.AddControllers();
+// Every client page across both phases (Document.Status, ApprovalMode, WorkflowInstance.Status,
+// etc.) assumes enums serialize as their string name ("Draft", "All", "Approved", ...) — that was
+// never actually configured, so the API has been sending/expecting raw integers by default the
+// whole time. String enums round-trip through JSON the same way in either direction, so this one
+// config line fixes every enum field across the whole API at once.
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

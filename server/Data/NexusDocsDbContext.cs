@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using NexusDocs.Api.Domain.Archive;
 using NexusDocs.Api.Domain.Common;
 using NexusDocs.Api.Domain.Erp;
+using NexusDocs.Api.Domain.Flow;
 using NexusDocs.Api.Domain.Platform;
 
 namespace NexusDocs.Api.Data;
@@ -51,6 +52,20 @@ public class NexusDocsDbContext(
     public DbSet<ErpLookupCacheEntry> ErpLookupCacheEntries => Set<ErpLookupCacheEntry>();
     public DbSet<IntegrationOutbox> IntegrationOutbox => Set<IntegrationOutbox>();
 
+    // Flow
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
+    public DbSet<StageDefinition> StageDefinitions => Set<StageDefinition>();
+    public DbSet<ApproverSpec> ApproverSpecs => Set<ApproverSpec>();
+    public DbSet<RoutingRule> RoutingRules => Set<RoutingRule>();
+    public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
+    public DbSet<StageInstance> StageInstances => Set<StageInstance>();
+    public DbSet<ApprovalTask> ApprovalTasks => Set<ApprovalTask>();
+    public DbSet<Decision> Decisions => Set<Decision>();
+    public DbSet<Delegation> Delegations => Set<Delegation>();
+    public DbSet<EscalationRule> EscalationRules => Set<EscalationRule>();
+    public DbSet<CommentThread> CommentThreads => Set<CommentThread>();
+    public DbSet<Requisition> Requisitions => Set<Requisition>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -69,6 +84,12 @@ public class NexusDocsDbContext(
         // Tenant.Slug identifies the tenant itself (subdomain/URL routing), so it is unique
         // across the whole install, not just within a tenant.
         b.Entity<Tenant>().HasIndex(e => e.Slug).IsUnique();
+
+        // Flow (ARCHITECTURE.md 2.1, 2.3)
+        b.Entity<WorkflowDefinition>().HasIndex(e => new { e.TenantId, e.WorkflowFamilyId });
+        b.Entity<ApprovalTask>().HasIndex(e => new { e.TenantId, e.AssigneeId, e.Status });
+        b.Entity<WorkflowInstance>().HasIndex(e => new { e.TenantId, e.SubjectType, e.SubjectId });
+        b.Entity<Delegation>().HasIndex(e => new { e.TenantId, e.PrincipalUserId, e.IsActive });
 
         foreach (var entityType in b.Model.GetEntityTypes())
         {

@@ -262,12 +262,17 @@ public class DocumentsController(
 
         var total = await query.CountAsync(ct);
 
-        var documentIds = await query
+        // Sqlite's EF provider can't translate ORDER BY on a DateTimeOffset column (not just
+        // WHERE range predicates — same family of issue as LicenseService.cs). Select just the
+        // two columns needed to sort/page, materialize, then order and paginate in memory.
+        var documentIds = (await query
+                .Select(d => new { d.Id, d.CreatedAt })
+                .ToListAsync(ct))
             .OrderByDescending(d => d.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(d => d.Id)
-            .ToListAsync(ct);
+            .ToList();
 
         var documents = await db.Documents.AsNoTracking()
             .Where(d => documentIds.Contains(d.Id))

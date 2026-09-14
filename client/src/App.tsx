@@ -5,6 +5,10 @@ import LoginPage from './pages/LoginPage';
 import CabinetsPage from './pages/CabinetsPage';
 import CabinetDetailPage from './pages/CabinetDetailPage';
 import DocumentDetailPage from './pages/DocumentDetailPage';
+import ApprovalsInboxPage from './pages/ApprovalsInboxPage';
+import WorkflowInstanceDetailPage from './pages/WorkflowInstanceDetailPage';
+import WorkflowDefinitionsPage from './pages/WorkflowDefinitionsPage';
+import RequisitionsPage from './pages/RequisitionsPage';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -28,6 +32,10 @@ function App() {
                   <Route path="/cabinets" element={<CabinetsPage />} />
                   <Route path="/cabinets/:id" element={<CabinetDetailPage />} />
                   <Route path="/documents/:id" element={<DocumentDetailPage />} />
+                  <Route path="/approvals" element={<ApprovalsInboxPage />} />
+                  <Route path="/workflow-instances/:id" element={<WorkflowInstanceDetailPage />} />
+                  <Route path="/workflow-definitions" element={<WorkflowDefinitionsPage />} />
+                  <Route path="/requisitions" element={<RequisitionsPage />} />
                   <Route path="*" element={<Navigate to="/cabinets" replace />} />
                 </Routes>
               </AppShell>
