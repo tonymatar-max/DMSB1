@@ -1,0 +1,250 @@
+/* Shared additions for the cabinet/document pages — builds on the component recipes already
+   defined in src/index.css (.btn, .panel, .tile, .status, .field-label, .field-input, .nav-item).
+   Nothing here restates a color/radius/shadow literal; everything reads the same tokens. */
+
+/* ---------- Page scaffolding ---------- */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+.page-head h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+.page-head .page-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.crumb {
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.crumb:hover { color: var(--accent-strong); }
+
+/* ---------- Cabinet grid ---------- */
+
+.cabinet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.cabinet-tile {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.cabinet-tile .cabinet-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cabinet-tile .cabinet-desc {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 32px;
+}
+.cabinet-tile .cabinet-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.cabinet-tile.new-cabinet {
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-strong);
+  font-weight: 600;
+  min-height: 96px;
+  border-style: dashed;
+  background: transparent;
+}
+.cabinet-tile.new-cabinet:hover { background: var(--accent-soft); }
+
+/* ---------- Tabs ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink); }
+.tab.active {
+  color: var(--accent-strong);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* ---------- Toolbar / search ---------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+.toolbar .search-input {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.toolbar .spacer { flex: 1; }
+
+/* ---------- Table ---------- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.data-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background .12s;
+}
+.data-table tbody tr:hover { background: var(--section); }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
+.empty-state {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* ---------- Badges ---------- */
+
+.badge-neutral {
+  display: inline-block;
+  min-width: 70px;
+  padding: 4px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.badge-erp {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* ---------- Modal ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 31, 46, .35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 16px;
+  z-index: 50;
+}
+.modal-panel {
+  width: 100%;
+  max-width: 480px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.modal-panel h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.modal-panel .modal-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-error {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0;
+}
+
+/* ---------- Detail panels ---------- */
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-body { padding: 16px; }
+.kv-list { display: flex; flex-direction: column; gap: 10px; }
+.kv-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+.kv-row .kv-key { color: var(--muted); }
+.kv-row .kv-value { color: var(--ink); font-weight: 500; text-align: right; }

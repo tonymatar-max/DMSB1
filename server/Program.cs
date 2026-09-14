@@ -1,0 +1,186 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using NexusDocs.Api.Data;
+using NexusDocs.Api.Domain.Platform;
+using NexusDocs.Api.Infrastructure.Audit;
+using NexusDocs.Api.Infrastructure.Auth;
+using NexusDocs.Api.Infrastructure.Erp;
+using NexusDocs.Api.Infrastructure.Files;
+using NexusDocs.Api.Infrastructure.Licensing;
+using NexusDocs.Api.Infrastructure.Tenancy;
+
+const string DevCorsPolicy = "NexusDocsDevClient";
+
+var builder = WebApplication.CreateBuilder(args);
+
+// --- JWT signing key ------------------------------------------------------------------------
+// JwtTokenService (which issues tokens) reads "Jwt:SigningKey" straight from IConfiguration, so
+// whatever key we resolve here must be the *same* value it sees. If none is configured we
+// generate a random one and write it back into the in-memory configuration so both this
+// registration and JwtTokenService agree on it — this is a dev-only convenience so `dotnet run`
+// works with no appsettings changes; a real deployment must set "Jwt:SigningKey" explicitly
+// (tokens won't survive a restart otherwise, since the generated key is not persisted).
+var signingKey = builder.Configuration["Jwt:SigningKey"];
+var usingGeneratedSigningKey = string.IsNullOrWhiteSpace(signingKey);
+if (usingGeneratedSigningKey)
+{
+    signingKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    builder.Configuration["Jwt:SigningKey"] = signingKey;
+}
+
+builder.Services.AddDbContext<NexusDocsDbContext>((sp, options) =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("Default")
+        ?? "Data Source=nexusdocs.dev.db";
+    options.UseSqlite(connectionString);
+});
+
+// --- Tenancy ---------------------------------------------------------------------------------
+// Two agents independently defined an ICurrentTenantAccessor: NexusDocsDbContext depends on the
+// get-only NexusDocs.Api.Data one (query filters / tenant stamping), while
+// TenantResolutionMiddleware and RequiresModuleAttribute depend on the settable
+// NexusDocs.Api.Infrastructure.Tenancy one. Both need to reflect the *same* tenant for a given
+// request, so we register one real (settable) CurrentTenantAccessor per scope and bridge the
+// Data-namespace interface to it below, rather than maintaining two independent tenant values.
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor, CurrentTenantAccessor>();
+builder.Services.AddScoped<NexusDocs.Api.Data.ICurrentTenantAccessor>(sp =>
+    new TenantAccessorBridge(sp.GetRequiredService<NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor>()));
+
+// --- Auth / authorization ----------------------------------------------------------------------
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey!)),
+            ClockSkew = TimeSpan.FromSeconds(30),
+        };
+    });
+builder.Services.AddAuthorization();
+
+builder.Services.AddSingleton<JwtTokenService>();
+
+// --- Domain services ---------------------------------------------------------------------------
+builder.Services.AddScoped<LicenseService>();
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
+
+// Typed HttpClient: registers both the HttpClient for SapB1ServiceLayerAdapter and
+// IErpAdapter -> SapB1ServiceLayerAdapter in one call.
+builder.Services.AddHttpClient<IErpAdapter, SapB1ServiceLayerAdapter>();
+
+// --- MVC / Swagger / CORS -----------------------------------------------------------------------
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Nexus Docs API", Version = "v1" });
+
+    var bearerScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "JWT access token from POST /api/auth/login, e.g. \"Bearer {token}\".",
+        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
+    };
+    options.AddSecurityDefinition("Bearer", bearerScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement { [bearerScheme] = [] });
+});
+
+builder.Services.AddCors(options =>
+{
+    // Local Vite dev server only. A real deployment should read allowed origins from
+    // configuration instead of hard-coding them.
+    options.AddPolicy(DevCorsPolicy, policy => policy
+        .WithOrigins("http://localhost:5173")
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+});
+
+var app = builder.Build();
+
+if (usingGeneratedSigningKey)
+{
+    app.Logger.LogWarning(
+        "Configuration value 'Jwt:SigningKey' was not set; generated a random dev-only signing " +
+        "key for this run. Tokens issued now will fail validation after a restart. Set " +
+        "Jwt:SigningKey in configuration for anything beyond local development.");
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseCors(DevCorsPolicy);
+
+app.UseAuthentication();
+// Must run after UseAuthentication (reads the "tenant" claim off HttpContext.User) and before
+// UseAuthorization / MapControllers (RequiresModuleAttribute and the DbContext's query filters
+// both need ICurrentTenantAccessor.TenantId already resolved).
+app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseAuthorization();
+
+app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<NexusDocsDbContext>();
+
+    // No EF Core migrations exist yet for this phase; EnsureCreated stands the schema up from the
+    // current model directly. Switch to db.Database.Migrate() once migrations are added.
+    db.Database.EnsureCreated();
+
+    // IgnoreQueryFilters(): this runs with no ambient tenant (no HTTP request in flight), so the
+    // normal tenant query filter would make Users.Any() look empty on every run and re-seed a
+    // duplicate dev tenant/user each time the app starts.
+    if (!db.Users.IgnoreQueryFilters().Any())
+    {
+        var devTenant = new Tenant { Name = "Nexus Docs Dev Tenant", Slug = "dev" };
+        var (hash, salt) = PasswordHasher.Hash("ChangeMe123!");
+        var devUser = new User
+        {
+            TenantId = devTenant.Id,
+            Email = "admin@nexusdocs.dev",
+            DisplayName = "Dev Admin",
+            PasswordHash = hash,
+            PasswordSalt = salt,
+        };
+
+        db.Tenants.Add(devTenant);
+        db.Users.Add(devUser);
+        db.SaveChanges();
+
+        app.Logger.LogWarning(
+            "Seeded dev tenant {TenantSlug} and user {Email} (password: ChangeMe123!) — dev only.",
+            devTenant.Slug, devUser.Email);
+    }
+}
+
+app.Run();
+
+/// <summary>
+/// Adapts the settable NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor (populated by
+/// TenantResolutionMiddleware) to the get-only NexusDocs.Api.Data.ICurrentTenantAccessor that
+/// NexusDocsDbContext (and DesignTimeDbContextFactory's NullCurrentTenantAccessor) depend on, so
+/// both interfaces see the same per-request tenant without either agent's code changing.
+/// </summary>
+internal sealed class TenantAccessorBridge(NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor inner) : NexusDocs.Api.Data.ICurrentTenantAccessor
+{
+    public Guid? TenantId => inner.TenantId;
+}

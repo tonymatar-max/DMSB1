@@ -1,0 +1,275 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  --ink: #1b1f2e;
+  --muted: #5a6480;
+  --line: #e3e6f0;
+  --line-strong: #ccd2e4;
+  --page: #f5f6fb;
+  --panel: #ffffff;
+
+  --accent: #3b54d4;
+  --accent-strong: #2b40ad;
+  --accent-soft: #eef1fd;
+  --section: #eef1fb;
+
+  --brand: #3b54d4;
+  --brand-2: #6f5be0;
+
+  --ok: #1f8a52;
+  --warn: #9a6412;
+  --danger: #c02a34;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+
+  --shadow: 0 1px 2px rgba(27, 31, 46, .06), 0 1px 3px rgba(27, 31, 46, .05);
+  --shadow-panel: 0 1px 2px rgba(27, 31, 46, .04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 13px/1.5 "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  min-height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 13px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.btn:disabled:hover {
+  border-color: var(--line-strong);
+  background: #fff;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.btn.danger {
+  border-color: #e2b6b9;
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: #fbecec;
+  border-color: var(--danger);
+}
+
+/* ---------- Brand mark ---------- */
+
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 1px 3px rgba(59, 84, 212, .35);
+}
+.brand-mark .brand-node {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .35);
+}
+.brand-mark.large {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+.brand-mark.large .brand-node {
+  width: 15px;
+  height: 15px;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, .3);
+}
+
+/* ---------- Product title ---------- */
+
+.product-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.product-title strong {
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.product-title .product-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ---------- Sidebar navigation ---------- */
+
+.nav-item {
+  width: calc(100% - 12px);
+  margin: 1px 6px;
+  min-height: 30px;
+  padding: 0 12px 0 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  position: relative;
+  transition: background .12s, color .12s;
+  text-decoration: none;
+  font-size: 13px;
+  cursor: pointer;
+}
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: background .12s;
+}
+.nav-item:hover {
+  background: var(--section);
+  color: var(--ink);
+}
+.nav-item.active {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.nav-item.active::before {
+  background: var(--accent);
+}
+.nav-item.disabled,
+.nav-item.disabled:hover {
+  color: #a7aec2;
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+.nav-item .nav-badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--section);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* ---------- Status pill ---------- */
+
+.status {
+  min-width: 70px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* ---------- Panels and cards ---------- */
+
+.panel {
+  margin: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+}
+.tile {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-panel);
+  transition: border-color .12s, box-shadow .12s, transform .12s;
+}
+.tile:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+.tile.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------- Form fields ---------- */
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.field-input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  padding: 0 10px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
