@@ -12,6 +12,7 @@ using NexusDocs.Api.Infrastructure.Erp;
 using NexusDocs.Api.Infrastructure.Files;
 using NexusDocs.Api.Infrastructure.Flow;
 using NexusDocs.Api.Infrastructure.Licensing;
+using NexusDocs.Api.Infrastructure.Secrets;
 using NexusDocs.Api.Infrastructure.Tenancy;
 
 const string DevCorsPolicy = "NexusDocsDevClient";
@@ -75,6 +76,7 @@ builder.Services.AddScoped<LicenseService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
+builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 
 // Typed HttpClient: registers both the HttpClient for SapB1ServiceLayerAdapter and
 // IErpAdapter -> SapB1ServiceLayerAdapter in one call.
@@ -82,6 +84,7 @@ builder.Services.AddHttpClient<IErpAdapter, SapB1ServiceLayerAdapter>();
 
 // --- Background workers -------------------------------------------------------------------------
 builder.Services.AddHostedService<FlowTimerWorker>();
+builder.Services.AddHostedService<IntegrationOutboxWorker>();
 
 // --- MVC / Swagger / CORS -----------------------------------------------------------------------
 // Every client page across both phases (Document.Status, ApprovalMode, WorkflowInstance.Status,
@@ -196,7 +199,7 @@ using (var scope = app.Services.CreateScope())
             // tenant needs the same entitlements a real customer would buy. Extend this list as new
             // modules ship; ValidTo far out so this never needs touching for local development.
             var farFuture = DateTimeOffset.UtcNow.AddYears(10);
-            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW"];
+            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP"];
             foreach (var moduleCode in devLicensedModules)
             {
                 db.TenantLicenses.Add(new TenantLicense

@@ -35,6 +35,12 @@ public class ErpConnection : ITenantScoped
     public string CompanyDb { get; set; } = string.Empty;
 
     /// <summary>
+    /// The Service Layer login username. Not a secret by itself (it identifies an account, not a
+    /// credential) — only <see cref="CredentialsRef"/>'s resolved password is.
+    /// </summary>
+    public string UserName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Identifier of the Nexus B1 Gateway instance that proxies Service Layer / read-only SQL
     /// calls for this connection, when the customer site is behind a firewall. Null when
     /// <see cref="BaseUrl"/> is used instead (direct, unproxied Service Layer access).
@@ -54,4 +60,6 @@ public class ErpConnection : ITenantScoped
     public string CredentialsRef { get; set; } = string.Empty;
 
     public bool IsActive { get; set; } = true;
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

@@ -9,6 +9,7 @@ import ApprovalsInboxPage from './pages/ApprovalsInboxPage';
 import WorkflowInstanceDetailPage from './pages/WorkflowInstanceDetailPage';
 import WorkflowDefinitionsPage from './pages/WorkflowDefinitionsPage';
 import RequisitionsPage from './pages/RequisitionsPage';
+import ErpConnectionsPage from './pages/ErpConnectionsPage';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -36,6 +37,7 @@ function App() {
                   <Route path="/workflow-instances/:id" element={<WorkflowInstanceDetailPage />} />
                   <Route path="/workflow-definitions" element={<WorkflowDefinitionsPage />} />
                   <Route path="/requisitions" element={<RequisitionsPage />} />
+                  <Route path="/erp-connections" element={<ErpConnectionsPage />} />
                   <Route path="*" element={<Navigate to="/cabinets" replace />} />
                 </Routes>
               </AppShell>

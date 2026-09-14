@@ -32,6 +32,7 @@ public class NexusDocsDbContext(
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<TenantLicense> TenantLicenses => Set<TenantLicense>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<TenantSecret> TenantSecrets => Set<TenantSecret>();
 
     // Archive
     public DbSet<Cabinet> Cabinets => Set<Cabinet>();
@@ -90,6 +91,9 @@ public class NexusDocsDbContext(
         b.Entity<ApprovalTask>().HasIndex(e => new { e.TenantId, e.AssigneeId, e.Status });
         b.Entity<WorkflowInstance>().HasIndex(e => new { e.TenantId, e.SubjectType, e.SubjectId });
         b.Entity<Delegation>().HasIndex(e => new { e.TenantId, e.PrincipalUserId, e.IsActive });
+
+        // One secret value per (tenant, key) — ErpConnection.CredentialsRef resolves through this.
+        b.Entity<TenantSecret>().HasIndex(e => new { e.TenantId, e.Key }).IsUnique();
 
         foreach (var entityType in b.Model.GetEntityTypes())
         {
