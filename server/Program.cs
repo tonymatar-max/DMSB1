@@ -178,11 +178,33 @@ using (var scope = app.Services.CreateScope())
 
             db.Tenants.Add(devTenant);
             db.Users.Add(devUser);
+
+            // Without a TenantLicense row, every [RequiresModule(...)] endpoint 402s even in dev —
+            // module gating is enforced unconditionally by design (ARCHITECTURE.md 2.4), so the dev
+            // tenant needs the same entitlements a real customer would buy. Extend this list as new
+            // modules ship; ValidTo far out so this never needs touching for local development.
+            var farFuture = DateTimeOffset.UtcNow.AddYears(10);
+            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW"];
+            foreach (var moduleCode in devLicensedModules)
+            {
+                db.TenantLicenses.Add(new TenantLicense
+                {
+                    TenantId = devTenant.Id,
+                    ModuleCode = moduleCode,
+                    Edition = "Enterprise",
+                    Status = TenantLicenseStatus.Active,
+                    ValidFrom = DateTimeOffset.UtcNow,
+                    ValidTo = farFuture,
+                    Signature = "dev-unsigned",
+                });
+            }
+
             db.SaveChanges();
 
             app.Logger.LogWarning(
-                "Seeded dev tenant {TenantSlug} and user {Email} (password: ChangeMe123!) — dev only.",
-                devTenant.Slug, devUser.Email);
+                "Seeded dev tenant {TenantSlug}, user {Email} (password: ChangeMe123!), and dev " +
+                "licences for {Modules} — dev only.",
+                devTenant.Slug, devUser.Email, string.Join(", ", devLicensedModules));
         }
     }
     // Production has no seeded user by design — a hardcoded password has no business existing

@@ -8,6 +8,13 @@ namespace NexusDocs.Api.Infrastructure.Licensing;
 /// Single source of truth for what a tenant has bought (ARCHITECTURE.md 2.4). Reads
 /// <see cref="TenantLicense"/> rows directly — no caching layer here (Phase 1: keep it simple;
 /// add a TTL cache the way Nexus Ops does if this becomes a hot path).
+///
+/// Every query here narrows to tenant + module + Active status in SQL, then checks the
+/// ValidFrom/ValidTo window client-side. The straightforward version — one predicate combining
+/// tenant, module, status and a DateTimeOffset range, layered under the global tenant query
+/// filter (NexusDocsDbContext.OnModelCreating) — fails to translate on the Sqlite provider
+/// (InvalidOperationException at query time). A tenant's row count per module is at most a
+/// handful, so the client-side date check costs nothing real.
 /// </summary>
 public class LicenseService(NexusDocsDbContext db)
 {
@@ -17,13 +24,15 @@ public class LicenseService(NexusDocsDbContext db)
     /// </summary>
     public async Task<bool> IsModuleEnabledAsync(Guid tenantId, string moduleCode)
     {
+        var candidates = await db.TenantLicenses.AsNoTracking()
+            .Where(l =>
+                l.TenantId == tenantId &&
+                l.ModuleCode == moduleCode &&
+                l.Status == TenantLicenseStatus.Active)
+            .ToListAsync();
+
         var now = DateTimeOffset.UtcNow;
-        return await db.TenantLicenses.AsNoTracking().AnyAsync(l =>
-            l.TenantId == tenantId &&
-            l.ModuleCode == moduleCode &&
-            l.Status == TenantLicenseStatus.Active &&
-            l.ValidFrom <= now &&
-            now <= l.ValidTo);
+        return candidates.Any(l => l.ValidFrom <= now && now <= l.ValidTo);
     }
 
     /// <summary>
@@ -34,13 +43,15 @@ public class LicenseService(NexusDocsDbContext db)
     /// </summary>
     public async Task<bool> AssertSeatAvailableAsync(Guid tenantId, string moduleCode)
     {
+        var candidates = await db.TenantLicenses.AsNoTracking()
+            .Where(l =>
+                l.TenantId == tenantId &&
+                l.ModuleCode == moduleCode &&
+                l.Status == TenantLicenseStatus.Active)
+            .ToListAsync();
+
         var now = DateTimeOffset.UtcNow;
-        var license = await db.TenantLicenses.AsNoTracking().FirstOrDefaultAsync(l =>
-            l.TenantId == tenantId &&
-            l.ModuleCode == moduleCode &&
-            l.Status == TenantLicenseStatus.Active &&
-            l.ValidFrom <= now &&
-            now <= l.ValidTo);
+        var license = candidates.FirstOrDefault(l => l.ValidFrom <= now && now <= l.ValidTo);
 
         if (license?.SeatsLicensed is not { } seatsLicensed)
         {
@@ -64,13 +75,11 @@ public class LicenseService(NexusDocsDbContext db)
     /// </summary>
     public async Task<IReadOnlyList<TenantLicense>> GetEntitlementsAsync(Guid tenantId)
     {
-        var now = DateTimeOffset.UtcNow;
-        return await db.TenantLicenses.AsNoTracking()
-            .Where(l =>
-                l.TenantId == tenantId &&
-                l.Status == TenantLicenseStatus.Active &&
-                l.ValidFrom <= now &&
-                now <= l.ValidTo)
+        var candidates = await db.TenantLicenses.AsNoTracking()
+            .Where(l => l.TenantId == tenantId && l.Status == TenantLicenseStatus.Active)
             .ToListAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        return candidates.Where(l => l.ValidFrom <= now && now <= l.ValidTo).ToList();
     }
 }
