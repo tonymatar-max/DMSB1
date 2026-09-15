@@ -6,6 +6,7 @@ using NexusDocs.Api.Domain.Common;
 using NexusDocs.Api.Domain.Erp;
 using NexusDocs.Api.Domain.Flow;
 using NexusDocs.Api.Domain.Platform;
+using NexusDocs.Api.Domain.Sign;
 
 namespace NexusDocs.Api.Data;
 
@@ -67,6 +68,13 @@ public class NexusDocsDbContext(
     public DbSet<CommentThread> CommentThreads => Set<CommentThread>();
     public DbSet<Requisition> Requisitions => Set<Requisition>();
 
+    // Sign
+    public DbSet<Envelope> Envelopes => Set<Envelope>();
+    public DbSet<Recipient> Recipients => Set<Recipient>();
+    public DbSet<SignatureField> SignatureFields => Set<SignatureField>();
+    public DbSet<CeremonyEvent> CeremonyEvents => Set<CeremonyEvent>();
+    public DbSet<SignatureCapture> SignatureCaptures => Set<SignatureCapture>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -94,6 +102,19 @@ public class NexusDocsDbContext(
 
         // One secret value per (tenant, key) — ErpConnection.CredentialsRef resolves through this.
         b.Entity<TenantSecret>().HasIndex(e => new { e.TenantId, e.Key }).IsUnique();
+
+        // Sign (ARCHITECTURE.md 2.1, 2.3). The public ceremony endpoints are unauthenticated (no
+        // ambient tenant claim) and look a recipient up by token alone, so this index must be both
+        // fast and collision-proof across all tenants.
+        b.Entity<Recipient>().HasIndex(e => e.CeremonyToken).IsUnique();
+
+        // Loading an envelope's full detail (recipients/fields/events) in one set of queries.
+        b.Entity<Recipient>().HasIndex(e => new { e.TenantId, e.EnvelopeId });
+        b.Entity<SignatureField>().HasIndex(e => new { e.TenantId, e.EnvelopeId });
+        b.Entity<CeremonyEvent>().HasIndex(e => new { e.TenantId, e.EnvelopeId });
+
+        // Finding envelopes against a given archived document.
+        b.Entity<Envelope>().HasIndex(e => new { e.TenantId, e.SourceDocumentId });
 
         foreach (var entityType in b.Model.GetEntityTypes())
         {

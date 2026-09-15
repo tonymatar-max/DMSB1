@@ -10,3 +10,4 @@ appsettings.Production.json
 *.db-shm
 *.db-wal
 server/wwwroot/
+server/blobs/

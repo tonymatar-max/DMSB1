@@ -13,9 +13,16 @@ using NexusDocs.Api.Infrastructure.Files;
 using NexusDocs.Api.Infrastructure.Flow;
 using NexusDocs.Api.Infrastructure.Licensing;
 using NexusDocs.Api.Infrastructure.Secrets;
+using NexusDocs.Api.Infrastructure.Sign;
 using NexusDocs.Api.Infrastructure.Tenancy;
 
 const string DevCorsPolicy = "NexusDocsDevClient";
+
+// PdfSharp 6.x throws "No appropriate font found" the first time an XFont is constructed unless a
+// font resolver is registered first - see SystemFontResolver's doc comment. Must happen before any
+// XFont(...) call anywhere in the process, so this is the very first line of Program.cs rather than
+// living in Infrastructure/Sign/PdfOverlaySealer.cs itself.
+PdfSharp.Fonts.GlobalFontSettings.FontResolver = new SystemFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +84,8 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();
 
 // Typed HttpClient: registers both the HttpClient for SapB1ServiceLayerAdapter and
 // IErpAdapter -> SapB1ServiceLayerAdapter in one call.
@@ -199,7 +208,7 @@ using (var scope = app.Services.CreateScope())
             // tenant needs the same entitlements a real customer would buy. Extend this list as new
             // modules ship; ValidTo far out so this never needs touching for local development.
             var farFuture = DateTimeOffset.UtcNow.AddYears(10);
-            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP"];
+            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP", "SIGN"];
             foreach (var moduleCode in devLicensedModules)
             {
                 db.TenantLicenses.Add(new TenantLicense

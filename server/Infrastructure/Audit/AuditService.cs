@@ -30,12 +30,25 @@ public class AuditService(NexusDocsDbContext db)
     /// should catch that failure and retry the whole read-max-seq + insert once. We deliberately
     /// do not add a distributed lock or serializable transaction here; for this phase's write
     /// volume, "detect the race via the unique index and retry" is sufficient and much simpler.
+    ///
+    /// Tenant filter: this method takes <paramref name="tenantId"/> explicitly and is called from
+    /// both authenticated code (ambient tenant resolved, e.g. EnvelopesController) and the SIGN
+    /// module's unauthenticated public ceremony endpoints (no ambient tenant at all - see
+    /// SigningCeremonyService's class remarks). Relying on NexusDocsDbContext's ambient-tenant
+    /// query filter here would silently scope both queries below to "TenantId == null" whenever
+    /// there's no ambient tenant, which matches zero rows rather than throwing - so lastSeq would
+    /// always come back 0 and every unauthenticated-path event would collide with the tenant's
+    /// real Seq 1 row (AuditEvents' (TenantId, Seq) unique index). Same fix already applied at
+    /// every other query in this codebase reached without a JWT - see
+    /// LicenseService.cs/SapB1ServiceLayerAdapter.cs/DataProtectionSecretStore.cs and the SIGN
+    /// module's SigningCeremonyController/VerifyController/SigningCeremonyService.
     /// </remarks>
     public async Task RecordAsync(Guid tenantId, string actor, string action, string subject, object payload)
     {
         var canonicalPayloadJson = CanonicalizeJson(payload);
 
         var lastSeq = await db.AuditEvents
+            .IgnoreQueryFilters()
             .Where(e => e.TenantId == tenantId)
             .Select(e => (long?)e.Seq)
             .MaxAsync() ?? 0L;
@@ -43,6 +56,7 @@ public class AuditService(NexusDocsDbContext db)
         var prevHash = lastSeq == 0
             ? GenesisHash
             : await db.AuditEvents
+                .IgnoreQueryFilters()
                 .Where(e => e.TenantId == tenantId && e.Seq == lastSeq)
                 .Select(e => e.Hash)
                 .SingleAsync();
@@ -71,7 +85,10 @@ public class AuditService(NexusDocsDbContext db)
     /// </summary>
     public async Task<bool> VerifyChainAsync(Guid tenantId)
     {
+        // Same ambient-filter hazard as RecordAsync above - explicit TenantId + IgnoreQueryFilters()
+        // so this also works correctly when called without an ambient tenant in scope.
         var events = await db.AuditEvents
+            .IgnoreQueryFilters()
             .Where(e => e.TenantId == tenantId)
             .OrderBy(e => e.Seq)
             .ToListAsync();

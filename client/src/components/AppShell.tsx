@@ -55,7 +55,9 @@ export default function AppShell({ children }: AppShellProps) {
           <NavLink to="/erp-connections" className={navLinkClass}>
             ERP Connections
           </NavLink>
-          <span className="nav-item disabled">Sign</span>
+          <NavLink to="/envelopes" className={navLinkClass}>
+            Sign
+          </NavLink>
         </nav>
 
         <main className="min-w-0 flex-1 overflow-auto">{children}</main>
