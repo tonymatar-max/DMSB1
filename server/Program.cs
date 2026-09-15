@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using NexusDocs.Api.Data;
@@ -25,6 +27,10 @@ const string DevCorsPolicy = "NexusDocsDevClient";
 PdfSharp.Fonts.GlobalFontSettings.FontResolver = new SystemFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
+// A no-op outside an actual Windows service context (e.g. `dotnet run`, or running under IIS/a
+// container), so this is always safe to call — only relevant once install-service.ps1 registers
+// this as a service.
+builder.Host.UseWindowsService(options => options.ServiceName = "NexusDocs");
 
 // --- JWT signing key ------------------------------------------------------------------------
 // JwtTokenService (which issues tokens) reads "Jwt:SigningKey" straight from IConfiguration, so
@@ -83,6 +89,19 @@ builder.Services.AddScoped<LicenseService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
+
+// Data Protection keys encrypt every value DataProtectionSecretStore writes (ERP connection
+// passwords). Without an explicit path, ASP.NET Core falls back to the current user profile's
+// %LOCALAPPDATA%\ASP.NET\DataProtection-Keys — fine for interactive `dotnet run`, but a Windows
+// service account's profile is easy to lose track of across a reinstall or a service-account
+// change, silently making every previously-stored secret unrecoverable. Same config-driven
+// pattern as BlobStore:RootPath: explicit path wins, falls back to a folder under the content
+// root otherwise (so this still works with zero configuration in dev).
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(
+    string.IsNullOrWhiteSpace(dataProtectionKeysPath)
+        ? Path.Combine(builder.Environment.ContentRootPath, "keys")
+        : Path.GetFullPath(dataProtectionKeysPath)));
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();
@@ -167,6 +186,13 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    utc = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName,
+    version = typeof(Program).Assembly.GetName().Version?.ToString(),
+}));
 
 // Client-side routes such as /cabinets/{id} are not files on disk; anything that is not an API
 // call or a real static file falls through to the SPA so a refresh or a shared link works.
