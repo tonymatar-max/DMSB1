@@ -52,6 +52,9 @@ export default function AppShell({ children }: AppShellProps) {
           <NavLink to="/approvals" className={navLinkClass}>
             Approvals
           </NavLink>
+          <NavLink to="/ingest-sources" className={navLinkClass}>
+            Capture
+          </NavLink>
           <NavLink to="/erp-connections" className={navLinkClass}>
             ERP Connections
           </NavLink>

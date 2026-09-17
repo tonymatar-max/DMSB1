@@ -11,3 +11,4 @@ appsettings.Production.json
 *.db-wal
 server/wwwroot/
 server/blobs/
+server/keys/

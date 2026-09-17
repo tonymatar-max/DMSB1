@@ -11,8 +11,11 @@ import WorkflowInstanceDetailPage from './pages/WorkflowInstanceDetailPage';
 import WorkflowDefinitionsPage from './pages/WorkflowDefinitionsPage';
 import RequisitionsPage from './pages/RequisitionsPage';
 import ErpConnectionsPage from './pages/ErpConnectionsPage';
+import IngestSourcesPage from './pages/IngestSourcesPage';
 import EnvelopesPage from './pages/EnvelopesPage';
 import EnvelopeDetailPage from './pages/EnvelopeDetailPage';
+import IngestItemsPage from './pages/IngestItemsPage';
+import IngestItemDetailPage from './pages/IngestItemDetailPage';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -42,8 +45,11 @@ function App() {
                   <Route path="/workflow-definitions" element={<WorkflowDefinitionsPage />} />
                   <Route path="/requisitions" element={<RequisitionsPage />} />
                   <Route path="/erp-connections" element={<ErpConnectionsPage />} />
+                  <Route path="/ingest-sources" element={<IngestSourcesPage />} />
                   <Route path="/envelopes" element={<EnvelopesPage />} />
                   <Route path="/envelopes/:id" element={<EnvelopeDetailPage />} />
+                  <Route path="/ingest-items" element={<IngestItemsPage />} />
+                  <Route path="/ingest-items/:id" element={<IngestItemDetailPage />} />
                   <Route path="*" element={<Navigate to="/cabinets" replace />} />
                 </Routes>
               </AppShell>

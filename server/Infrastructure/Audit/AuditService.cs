@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NexusDocs.Api.Data;
 using NexusDocs.Api.Domain.Platform;
@@ -47,36 +48,63 @@ public class AuditService(NexusDocsDbContext db)
     {
         var canonicalPayloadJson = CanonicalizeJson(payload);
 
-        var lastSeq = await db.AuditEvents
-            .IgnoreQueryFilters()
-            .Where(e => e.TenantId == tenantId)
-            .Select(e => (long?)e.Seq)
-            .MaxAsync() ?? 0L;
+        // The race the class doc comment above already predicted, actually hit: two files dropped
+        // into the same hot folder within the same instant each spawn their own
+        // ProcessDroppedFileAsync task with its own DbContext scope, both read the same lastSeq,
+        // and only one insert can win the (TenantId, Seq) unique index - the loser's whole
+        // SaveChangesAsync (and everything else batched into it) previously just failed outright.
+        // Retry a bounded number of times: re-read lastSeq/prevHash fresh each attempt, since
+        // another writer may have advanced it in between.
+        const int maxAttempts = 5;
 
-        var prevHash = lastSeq == 0
-            ? GenesisHash
-            : await db.AuditEvents
-                .IgnoreQueryFilters()
-                .Where(e => e.TenantId == tenantId && e.Seq == lastSeq)
-                .Select(e => e.Hash)
-                .SingleAsync();
-
-        var evt = new AuditEvent
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            TenantId = tenantId,
-            Seq = lastSeq + 1,
-            Actor = actor,
-            Action = action,
-            Subject = subject,
-            PayloadJson = canonicalPayloadJson,
-            PrevHash = prevHash,
-            Hash = ComputeHash(prevHash, canonicalPayloadJson),
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+            var lastSeq = await db.AuditEvents
+                .IgnoreQueryFilters()
+                .Where(e => e.TenantId == tenantId)
+                .Select(e => (long?)e.Seq)
+                .MaxAsync() ?? 0L;
 
-        db.AuditEvents.Add(evt);
-        await db.SaveChangesAsync();
+            var prevHash = lastSeq == 0
+                ? GenesisHash
+                : await db.AuditEvents
+                    .IgnoreQueryFilters()
+                    .Where(e => e.TenantId == tenantId && e.Seq == lastSeq)
+                    .Select(e => e.Hash)
+                    .SingleAsync();
+
+            var evt = new AuditEvent
+            {
+                TenantId = tenantId,
+                Seq = lastSeq + 1,
+                Actor = actor,
+                Action = action,
+                Subject = subject,
+                PayloadJson = canonicalPayloadJson,
+                PrevHash = prevHash,
+                Hash = ComputeHash(prevHash, canonicalPayloadJson),
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+
+            db.AuditEvents.Add(evt);
+
+            try
+            {
+                await db.SaveChangesAsync();
+                return;
+            }
+            catch (DbUpdateException ex) when (IsUniqueSeqViolation(ex) && attempt < maxAttempts)
+            {
+                // Stop tracking the failed row before retrying, or the next SaveChangesAsync
+                // tries to insert it again alongside the new attempt's row.
+                db.Entry(evt).State = EntityState.Detached;
+            }
+        }
     }
+
+    private static bool IsUniqueSeqViolation(DbUpdateException ex) =>
+        ex.InnerException is SqliteException { SqliteErrorCode: 19 } sqliteEx &&
+        sqliteEx.Message.Contains("AuditEvents.TenantId, AuditEvents.Seq", StringComparison.Ordinal);
 
     /// <summary>
     /// Walks a tenant's audit chain in Seq order, recomputing each row's hash from its stored

@@ -188,6 +188,10 @@ public class SapB1ServiceLayerAdapter : IErpAdapter
                 "/b1s/v1/PurchaseOrders",
                 BuildPurchaseOrderFromRequisitionPayload(item.PayloadJson)),
 
+            "CreatePurchaseInvoiceFromGrpo" => (
+                "/b1s/v1/PurchaseInvoices",
+                BuildPurchaseInvoiceFromGrpoPayload(item.PayloadJson)),
+
             _ => throw new SapB1UnsupportedOperationException(
                 $"OperationType '{item.OperationType}' has no Service Layer mapping in SapB1ServiceLayerAdapter."),
         };
@@ -228,6 +232,56 @@ public class SapB1ServiceLayerAdapter : IErpAdapter
                 },
             },
         };
+    }
+
+    /// <summary>
+    /// CAPTURE module A/P invoice automation (ARCHITECTURE.md section 7 step 6): a cleanly-matched
+    /// captured invoice is posted as a B1 A/P Invoice created "from" (base-document-copied-to) the
+    /// matched Goods Receipt PO, via Service Layer's standard base-document-reference mechanism —
+    /// DocumentLines[].BaseType=20 (Goods Receipt PO object code), BaseEntry=the GRPO's DocEntry.
+    ///
+    /// PHASE 4 SIMPLIFICATION: BaseLine is hard-coded to 0 for every line — i.e. this always copies
+    /// the GRPO's first line only. Real multi-line matching (copying each GRPO line the invoice
+    /// actually covers, by its own BaseLine index) needs line-level data this phase's
+    /// IThreeWayMatchService does not produce yet (it matches at the document/header level only —
+    /// see MatchResult, which carries no line detail) and is a natural refinement once that exists.
+    /// </summary>
+    private static JsonNode BuildPurchaseInvoiceFromGrpoPayload(string payloadJson)
+    {
+        using var doc = JsonDocument.Parse(payloadJson);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("MatchedGrpoDocEntry", out var grpoDocEntryProp) || grpoDocEntryProp.ValueKind != JsonValueKind.Number)
+        {
+            throw new SapB1UnsupportedOperationException(
+                "CreatePurchaseInvoiceFromGrpo outbox payload is missing a numeric MatchedGrpoDocEntry; cannot build the Service Layer request.");
+        }
+        var grpoDocEntry = grpoDocEntryProp.GetInt32();
+
+        var cardCode = root.TryGetProperty("MatchedCardCode", out var cc) ? cc.GetString() : null;
+        var invoiceNumber = root.TryGetProperty("InvoiceNumber", out var inv) ? inv.GetString() : null;
+
+        var body = new JsonObject
+        {
+            ["DocDate"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd"),
+            ["Comments"] = $"Created by Nexus Docs CAPTURE from ingested invoice {invoiceNumber ?? "(unknown number)"}, matched to GRPO DocEntry {grpoDocEntry}.",
+            ["DocumentLines"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["BaseType"] = 20, // Goods Receipt PO (B1 object code 20)
+                    ["BaseEntry"] = grpoDocEntry,
+                    ["BaseLine"] = 0, // Phase 4 simplification - see method doc comment.
+                },
+            },
+        };
+
+        if (!string.IsNullOrWhiteSpace(cardCode))
+        {
+            body["CardCode"] = cardCode;
+        }
+
+        return body;
     }
 
     private static string DescribeLabel(int objectType, JsonNode node)

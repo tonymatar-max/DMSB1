@@ -10,6 +10,7 @@ using NexusDocs.Api.Data;
 using NexusDocs.Api.Domain.Platform;
 using NexusDocs.Api.Infrastructure.Audit;
 using NexusDocs.Api.Infrastructure.Auth;
+using NexusDocs.Api.Infrastructure.Capture;
 using NexusDocs.Api.Infrastructure.Erp;
 using NexusDocs.Api.Infrastructure.Files;
 using NexusDocs.Api.Infrastructure.Flow;
@@ -105,6 +106,12 @@ builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.PdfPigTextProvider>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.TesseractCliOcrProvider>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.IOcrProvider, NexusDocs.Api.Infrastructure.Capture.CompositeOcrProvider>();
+// Registered here (rather than left to the ThreeWayMatchService agent) because IngestPipelineService
+// depends on it and needs it resolvable for the app to start — see IThreeWayMatchService.cs / ThreeWayMatchService.cs.
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.IThreeWayMatchService, NexusDocs.Api.Infrastructure.Capture.ThreeWayMatchService>();
 
 // Typed HttpClient: registers both the HttpClient for SapB1ServiceLayerAdapter and
 // IErpAdapter -> SapB1ServiceLayerAdapter in one call.
@@ -113,6 +120,8 @@ builder.Services.AddHttpClient<IErpAdapter, SapB1ServiceLayerAdapter>();
 // --- Background workers -------------------------------------------------------------------------
 builder.Services.AddHostedService<FlowTimerWorker>();
 builder.Services.AddHostedService<IntegrationOutboxWorker>();
+builder.Services.AddHostedService<HotFolderWatcher>();
+builder.Services.AddScoped<IngestPipelineService>();
 
 // --- MVC / Swagger / CORS -----------------------------------------------------------------------
 // Every client page across both phases (Document.Status, ApprovalMode, WorkflowInstance.Status,
@@ -234,7 +243,7 @@ using (var scope = app.Services.CreateScope())
             // tenant needs the same entitlements a real customer would buy. Extend this list as new
             // modules ship; ValidTo far out so this never needs touching for local development.
             var farFuture = DateTimeOffset.UtcNow.AddYears(10);
-            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP", "SIGN"];
+            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP", "SIGN", "CAPTURE"];
             foreach (var moduleCode in devLicensedModules)
             {
                 db.TenantLicenses.Add(new TenantLicense

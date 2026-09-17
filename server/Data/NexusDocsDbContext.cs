@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using NexusDocs.Api.Domain.Archive;
+using NexusDocs.Api.Domain.Capture;
 using NexusDocs.Api.Domain.Common;
 using NexusDocs.Api.Domain.Erp;
 using NexusDocs.Api.Domain.Flow;
@@ -75,6 +76,13 @@ public class NexusDocsDbContext(
     public DbSet<CeremonyEvent> CeremonyEvents => Set<CeremonyEvent>();
     public DbSet<SignatureCapture> SignatureCaptures => Set<SignatureCapture>();
 
+    // Capture
+    public DbSet<IngestSource> IngestSources => Set<IngestSource>();
+    public DbSet<IngestBatch> IngestBatches => Set<IngestBatch>();
+    public DbSet<IngestItem> IngestItems => Set<IngestItem>();
+    public DbSet<ExtractionResult> ExtractionResults => Set<ExtractionResult>();
+    public DbSet<MatchResult> MatchResults => Set<MatchResult>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -115,6 +123,20 @@ public class NexusDocsDbContext(
 
         // Finding envelopes against a given archived document.
         b.Entity<Envelope>().HasIndex(e => new { e.TenantId, e.SourceDocumentId });
+
+        // Capture (ARCHITECTURE.md section 7). De-dupe re-ingested files (step 2): the same
+        // content hash within the same batch must not create a second item. Note: IngestItem
+        // carries IngestBatchId (not IngestSourceId directly - see Domain/Capture/IngestItem.cs),
+        // so de-dupe is scoped per-batch here rather than per-source; a source's IngestBatches
+        // all share the source's IngestSourceId, which the batch-processing pipeline can use to
+        // check across batches before creating a new IngestItem if source-wide de-dupe is needed.
+        b.Entity<IngestItem>()
+            .HasIndex(e => new { e.TenantId, e.IngestBatchId, e.ContentHash })
+            .IsUnique();
+
+        // Batch/item list views filter by status and by owning batch.
+        b.Entity<IngestItem>().HasIndex(e => new { e.TenantId, e.Status });
+        b.Entity<IngestItem>().HasIndex(e => new { e.TenantId, e.IngestBatchId });
 
         foreach (var entityType in b.Model.GetEntityTypes())
         {
