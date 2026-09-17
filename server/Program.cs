@@ -109,7 +109,17 @@ var resolvedKeysPath = string.IsNullOrWhiteSpace(dataProtectionKeysPath)
     : Path.IsPathRooted(dataProtectionKeysPath)
         ? dataProtectionKeysPath
         : Path.Combine(builder.Environment.ContentRootPath, dataProtectionKeysPath);
-builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(resolvedKeysPath));
+// SetApplicationName pins the isolation discriminator to a fixed string rather than the default
+// (derived from ContentRootPath). Without it, a value protected by this app cannot be unprotected
+// by a copy of the exact same app running from a different folder - which sounds academic, but
+// meant every ErpConnection password would become permanently unrecoverable the moment the app is
+// reinstalled to a new path, and made it impossible to safely test this server against production
+// data from a second location (found by doing exactly that: an otherwise-identical instance run
+// from a different directory silently failed to decrypt a secret that its production sibling could
+// read fine, seconds apart, off the very same key files).
+builder.Services.AddDataProtection()
+    .SetApplicationName("NexusDocs")
+    .PersistKeysToFileSystem(new DirectoryInfo(resolvedKeysPath));
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();

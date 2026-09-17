@@ -107,6 +107,40 @@ public class SapB1ServiceLayerAdapter : IErpAdapter
         return new ErpLookupResult(externalKey, label, dataJson);
     }
 
+    /// <summary>
+    /// Reads a handful of real rows for a B1 object type - a read-only exploration/testing aid
+    /// (find out what CardCodes/DocNums actually exist before doing a single LookupObjectAsync),
+    /// not used by any production pipeline. Never writes anything.
+    /// </summary>
+    public async Task<IReadOnlyList<ErpLookupResult>> SampleAsync(Guid tenantId, int objectType, int top)
+    {
+        if (!ObjectTypeToEntitySet.TryGetValue(objectType, out var entitySet))
+        {
+            _logger.LogWarning("No Service Layer entity set mapping for B1 object type {ObjectType}.", objectType);
+            return [];
+        }
+
+        var connection = await ResolveConnectionAsync(tenantId);
+        if (connection is null) return [];
+
+        var clampedTop = Math.Clamp(top, 1, 20);
+        var path = $"/b1s/v1/{entitySet}?$top={clampedTop}";
+        var node = await SendAsync(connection, HttpMethod.Get, path, body: null);
+
+        var rows = node?["value"]?.AsArray() ?? [];
+        var results = new List<ErpLookupResult>();
+        foreach (var row in rows)
+        {
+            if (row is null) continue;
+            var key = objectType == 2
+                ? row["CardCode"]?.ToString() ?? ""
+                : row["DocEntry"]?.ToString() ?? "";
+            results.Add(new ErpLookupResult(key, DescribeLabel(objectType, row), row.ToJsonString()));
+        }
+
+        return results;
+    }
+
     public async Task<ErpConnectionTestResult> TestConnectionAsync(Guid tenantId, Guid erpConnectionId)
     {
         var connection = await _db.ErpConnections

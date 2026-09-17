@@ -37,3 +37,5 @@ public record UpdateErpConnectionRequest(
     bool IsActive);
 
 public record ErpConnectionTestResultDto(bool Success, string Message);
+
+public record ErpLookupResultDto(string Key, string Label, string DataJson);

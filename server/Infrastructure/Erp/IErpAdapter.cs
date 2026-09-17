@@ -32,6 +32,12 @@ public interface IErpAdapter
     Task<ErpLookupResult?> LookupObjectAsync(Guid tenantId, int objectType, string externalKey);
 
     /// <summary>
+    /// Reads a handful of real rows for a B1 object type - a read-only exploration/testing aid,
+    /// not used by any production pipeline. Never writes anything.
+    /// </summary>
+    Task<IReadOnlyList<ErpLookupResult>> SampleAsync(Guid tenantId, int objectType, int top);
+
+    /// <summary>
     /// Pushes a single pending <c>OutboxItem</c> to the ERP (object creation, attachment bridge,
     /// UDF stamp, etc. — see ARCHITECTURE.md §4.4/§4.5 for the write-back patterns this ultimately
     /// serves). The outbox worker calls this per item and handles retry/backoff around it.

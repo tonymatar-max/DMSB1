@@ -46,6 +46,16 @@ async function deleteConnection(id: string): Promise<void> {
   await api.delete(`/api/erp-connections/${id}`)
 }
 
+interface TestResult {
+  success: boolean
+  message: string
+}
+
+async function testConnection(id: string): Promise<TestResult> {
+  const { data } = await api.post<TestResult>(`/api/erp-connections/${id}/test`)
+  return data
+}
+
 export default function ErpConnectionsPage() {
   const queryClient = useQueryClient()
   const [isCreateOpen, setCreateOpen] = useState(false)
@@ -71,6 +81,14 @@ export default function ErpConnectionsPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteConnection,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erpConnections'] }),
+  })
+
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
+  const testMutation = useMutation({
+    mutationFn: testConnection,
+    onSuccess: (result, id) => setTestResults((prev) => ({ ...prev, [id]: result })),
+    onError: (_error, id) =>
+      setTestResults((prev) => ({ ...prev, [id]: { success: false, message: 'Request failed.' } })),
   })
 
   function closeCreateModal() {
@@ -134,6 +152,7 @@ export default function ErpConnectionsPage() {
                   <th>Endpoint</th>
                   <th>Credentials</th>
                   <th>Status</th>
+                  <th>Test</th>
                   <th></th>
                 </tr>
               </thead>
@@ -148,6 +167,24 @@ export default function ErpConnectionsPage() {
                     </td>
                     <td>
                       <span className="status">{conn.isActive ? 'Active' : 'Inactive'}</span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn sm"
+                        onClick={() => testMutation.mutate(conn.id)}
+                        disabled={testMutation.isPending}
+                      >
+                        {testMutation.isPending && testMutation.variables === conn.id ? 'Testing…' : 'Test connection'}
+                      </button>
+                      {testResults[conn.id] && (
+                        <div
+                          className="page-sub"
+                          style={{ color: testResults[conn.id].success ? 'var(--ok)' : 'var(--danger)', marginTop: 4 }}
+                        >
+                          {testResults[conn.id].message}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <button

@@ -118,6 +118,32 @@ public class ErpConnectionsController(
         return Ok(new ErpConnectionTestResultDto(result.Success, result.Message));
     }
 
+    /// <summary>
+    /// Read-only exploration aid: a handful of real rows for a B1 object type (see
+    /// ARCHITECTURE.md section 4.1's object code table - 2=BusinessPartner, 22=PurchaseOrder,
+    /// 20=GoodsReceiptPO, etc.). Never writes anything.
+    /// </summary>
+    [HttpGet("sample")]
+    public async Task<ActionResult<IReadOnlyList<ErpLookupResultDto>>> Sample([FromQuery] int objectType, [FromQuery] int top = 5)
+    {
+        if (currentTenant.TenantId is not { } tenantId) return Unauthorized();
+
+        var results = await erpAdapter.SampleAsync(tenantId, objectType, top);
+        return Ok(results.Select(r => new ErpLookupResultDto(r.Key, r.Label, r.DataJson)).ToList());
+    }
+
+    /// <summary>Look up one specific object by its external key. Never writes anything.</summary>
+    [HttpGet("lookup")]
+    public async Task<ActionResult<ErpLookupResultDto>> Lookup([FromQuery] int objectType, [FromQuery] string key)
+    {
+        if (currentTenant.TenantId is not { } tenantId) return Unauthorized();
+
+        var result = await erpAdapter.LookupObjectAsync(tenantId, objectType, key);
+        return result is null
+            ? NotFound()
+            : Ok(new ErpLookupResultDto(result.Key, result.Label, result.DataJson));
+    }
+
     private static ErpConnectionDto ToDto(ErpConnection c) => new(
         c.Id, c.SystemType, c.Name, c.CompanyDb, c.UserName, c.GatewayId, c.BaseUrl,
         HasCredentials: !string.IsNullOrEmpty(c.CredentialsRef),
