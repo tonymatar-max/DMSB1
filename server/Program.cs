@@ -123,6 +123,7 @@ builder.Services.AddDataProtection()
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();
+builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Gen.ITemplateRenderer, NexusDocs.Api.Infrastructure.Gen.ScribanTemplateRenderer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.PdfPigTextProvider>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.TesseractCliOcrProvider>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Capture.IOcrProvider, NexusDocs.Api.Infrastructure.Capture.CompositeOcrProvider>();
@@ -260,7 +261,7 @@ using (var scope = app.Services.CreateScope())
             // tenant needs the same entitlements a real customer would buy. Extend this list as new
             // modules ship; ValidTo far out so this never needs touching for local development.
             var farFuture = DateTimeOffset.UtcNow.AddYears(10);
-            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP", "SIGN", "CAPTURE"];
+            string[] devLicensedModules = ["CORE", "ARCHIVE", "FLOW", "ERP", "SIGN", "CAPTURE", "GEN"];
             foreach (var moduleCode in devLicensedModules)
             {
                 db.TenantLicenses.Add(new TenantLicense

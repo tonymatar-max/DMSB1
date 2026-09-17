@@ -6,6 +6,7 @@ using NexusDocs.Api.Domain.Capture;
 using NexusDocs.Api.Domain.Common;
 using NexusDocs.Api.Domain.Erp;
 using NexusDocs.Api.Domain.Flow;
+using NexusDocs.Api.Domain.Gen;
 using NexusDocs.Api.Domain.Platform;
 using NexusDocs.Api.Domain.Sign;
 
@@ -83,6 +84,10 @@ public class NexusDocsDbContext(
     public DbSet<ExtractionResult> ExtractionResults => Set<ExtractionResult>();
     public DbSet<MatchResult> MatchResults => Set<MatchResult>();
 
+    // Gen
+    public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
+    public DbSet<GeneratedDocument> GeneratedDocuments => Set<GeneratedDocument>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -137,6 +142,9 @@ public class NexusDocsDbContext(
         // Batch/item list views filter by status and by owning batch.
         b.Entity<IngestItem>().HasIndex(e => new { e.TenantId, e.Status });
         b.Entity<IngestItem>().HasIndex(e => new { e.TenantId, e.IngestBatchId });
+
+        // Gen: listing generations for a given template.
+        b.Entity<GeneratedDocument>().HasIndex(e => new { e.TenantId, e.DocumentTemplateId });
 
         foreach (var entityType in b.Model.GetEntityTypes())
         {

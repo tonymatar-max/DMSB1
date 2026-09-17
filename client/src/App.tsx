@@ -16,6 +16,8 @@ import EnvelopesPage from './pages/EnvelopesPage';
 import EnvelopeDetailPage from './pages/EnvelopeDetailPage';
 import IngestItemsPage from './pages/IngestItemsPage';
 import IngestItemDetailPage from './pages/IngestItemDetailPage';
+import DocumentTemplatesPage from './pages/DocumentTemplatesPage';
+import GeneratedDocumentsPage from './pages/GeneratedDocumentsPage';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -50,6 +52,8 @@ function App() {
                   <Route path="/envelopes/:id" element={<EnvelopeDetailPage />} />
                   <Route path="/ingest-items" element={<IngestItemsPage />} />
                   <Route path="/ingest-items/:id" element={<IngestItemDetailPage />} />
+                  <Route path="/document-templates" element={<DocumentTemplatesPage />} />
+                  <Route path="/generated-documents" element={<GeneratedDocumentsPage />} />
                   <Route path="*" element={<Navigate to="/cabinets" replace />} />
                 </Routes>
               </AppShell>

@@ -257,6 +257,32 @@ public class DocumentsController(
             }
 
             var rawValue = value.ToString();
+
+            // Date gte/lte needs its own path: comparing DateTimeOffset inside the correlated
+            // Any() subquery below fails to translate on Sqlite (same bug family as the ORDER BY
+            // fix a few lines down — found by QA actually running a date-range search, not by
+            // inspection: it 500'd instead of translating). Number/Text/Boolean all compare fine
+            // inside Any() and are untouched. Resolve matching document ids with a translatable
+            // query first (just equality/non-null), then compare dates in memory.
+            if (op is "gte" or "lte"
+                && !decimal.TryParse(rawValue, NumberStyles.Number, CultureInfo.InvariantCulture, out _)
+                && DateTimeOffset.TryParse(rawValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateBound))
+            {
+                var candidates = await db.DocumentIndexValues.AsNoTracking()
+                    .Where(v => v.FieldCode == fieldCode && v.DateValue != null)
+                    .Select(v => new { v.DocumentId, v.DateValue })
+                    .ToListAsync(ct);
+
+                var matchingIds = (op == "gte"
+                        ? candidates.Where(v => v.DateValue!.Value >= dateBound)
+                        : candidates.Where(v => v.DateValue!.Value <= dateBound))
+                    .Select(v => v.DocumentId)
+                    .ToHashSet();
+
+                query = query.Where(d => matchingIds.Contains(d.Id));
+                continue;
+            }
+
             query = ApplyIndexFilter(query, fieldCode, op, rawValue);
         }
 

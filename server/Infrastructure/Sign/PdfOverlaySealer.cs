@@ -4,6 +4,7 @@ using NexusDocs.Api.Infrastructure.Files;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
+using NexusDocs.Api.Infrastructure.Flow;
 
 namespace NexusDocs.Api.Infrastructure.Sign;
 
@@ -59,7 +60,23 @@ public class PdfOverlaySealer : IPdfSealer
             sourceBytes = buffer.ToArray();
         }
 
-        using var document = PdfReader.Open(new MemoryStream(sourceBytes), PdfDocumentOpenMode.Modify);
+        PdfDocument document;
+        try
+        {
+            document = PdfReader.Open(new MemoryStream(sourceBytes), PdfDocumentOpenMode.Modify);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A malformed/corrupt source PDF (e.g. a hand-crafted or truncated file that slipped
+            // past upload) must not surface PdfSharp's internal parser exception + stack trace to
+            // the (unauthenticated, in the ceremony-complete case) caller as an unhandled 500.
+            // Bug found via QA: completing a ceremony whose source document is not a valid PDF
+            // threw PdfReaderException straight through to a 500 response.
+            throw new ValidationException(
+                "The source document could not be sealed: it is not a valid PDF file.");
+        }
+        using (document)
+        {
 
         var recipientsById = recipients.ToDictionary(r => r.Id);
 
@@ -87,6 +104,7 @@ public class PdfOverlaySealer : IPdfSealer
         await _blobStore.PutAsync(tenantId, output);
 
         return sealedHash;
+        }
     }
 
     // -------------------------------------------------------------------------------------------
