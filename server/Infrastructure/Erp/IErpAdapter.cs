@@ -37,4 +37,13 @@ public interface IErpAdapter
     /// serves). The outbox worker calls this per item and handles retry/backoff around it.
     /// </summary>
     Task PushOutboxItemAsync(Guid tenantId, Guid outboxItemId);
+
+    /// <summary>
+    /// Verifies a specific <see cref="ErpConnection"/> actually works: logs in and performs one
+    /// harmless read. Never writes anything. Used by ErpConnectionsController's "test connection"
+    /// action so a real login can be exercised without side effects.
+    /// </summary>
+    Task<ErpConnectionTestResult> TestConnectionAsync(Guid tenantId, Guid erpConnectionId);
 }
+
+public record ErpConnectionTestResult(bool Success, string Message);

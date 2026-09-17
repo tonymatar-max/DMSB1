@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import BrandMark from './BrandMark';
+import { logout } from '../api/client';
 
 interface AppShellProps {
   children: ReactNode;
@@ -22,13 +23,8 @@ export default function AppShell({ children }: AppShellProps) {
           <span className="product-sub">Docs</span>
         </div>
         <div className="flex-1" />
-        <button type="button" className="btn" aria-label="User menu">
-          <span
-            className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
-            style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}
-          >
-            U
-          </span>
+        <button type="button" className="btn" onClick={logout}>
+          Sign out
         </button>
       </header>
 

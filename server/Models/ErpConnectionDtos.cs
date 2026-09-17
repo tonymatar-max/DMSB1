@@ -35,3 +35,5 @@ public record UpdateErpConnectionRequest(
     string? GatewayId,
     string? BaseUrl,
     bool IsActive);
+
+public record ErpConnectionTestResultDto(bool Success, string Message);

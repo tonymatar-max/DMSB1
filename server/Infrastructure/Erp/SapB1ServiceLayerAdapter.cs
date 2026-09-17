@@ -107,6 +107,40 @@ public class SapB1ServiceLayerAdapter : IErpAdapter
         return new ErpLookupResult(externalKey, label, dataJson);
     }
 
+    public async Task<ErpConnectionTestResult> TestConnectionAsync(Guid tenantId, Guid erpConnectionId)
+    {
+        var connection = await _db.ErpConnections
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Id == erpConnectionId);
+
+        if (connection is null)
+        {
+            return new ErpConnectionTestResult(false, "Connection not found.");
+        }
+
+        // Force a fresh login rather than reusing a cached session, so "test connection" actually
+        // proves the credentials/URL work right now, not "worked at some point in the last 25
+        // minutes". GetOrCreateSessionAsync itself has no signature to bypass its cache, so drop
+        // the cached entry first.
+        Sessions.TryRemove(connection.Id, out _);
+
+        try
+        {
+            // BusinessPartners?$top=1 is present in every B1 company database (SBODemoHO
+            // included) regardless of what data exists, and is a plain read - nothing is written.
+            var result = await SendAsync(connection, HttpMethod.Get, "/b1s/v1/BusinessPartners?$top=1", body: null);
+            var count = result?["value"]?.AsArray().Count ?? 0;
+            return new ErpConnectionTestResult(
+                true,
+                $"Connected to '{connection.CompanyDb}' as '{connection.UserName}'. Read {count} business partner row(s) back.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TestConnectionAsync failed for ErpConnection {ErpConnectionId}.", connection.Id);
+            return new ErpConnectionTestResult(false, ex.Message);
+        }
+    }
+
     public async Task PushOutboxItemAsync(Guid tenantId, Guid outboxItemId)
     {
         var item = await _db.IntegrationOutbox

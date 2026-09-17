@@ -21,6 +21,7 @@ namespace NexusDocs.Api.Api;
 public class ErpConnectionsController(
     NexusDocsDbContext db,
     ISecretStore secretStore,
+    NexusDocs.Api.Infrastructure.Erp.IErpAdapter erpAdapter,
     NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor currentTenant) : ControllerBase
 {
     [HttpGet]
@@ -105,6 +106,16 @@ public class ErpConnectionsController(
         await db.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    /// <summary>Logs in and performs one harmless read - never writes anything to the ERP.</summary>
+    [HttpPost("{id:guid}/test")]
+    public async Task<ActionResult<ErpConnectionTestResultDto>> Test(Guid id)
+    {
+        if (currentTenant.TenantId is not { } tenantId) return Unauthorized();
+
+        var result = await erpAdapter.TestConnectionAsync(tenantId, id);
+        return Ok(new ErpConnectionTestResultDto(result.Success, result.Message));
     }
 
     private static ErpConnectionDto ToDto(ErpConnection c) => new(
