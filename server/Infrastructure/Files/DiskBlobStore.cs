@@ -18,9 +18,20 @@ public class DiskBlobStore : IBlobStore
     public DiskBlobStore(IConfiguration configuration, IWebHostEnvironment environment)
     {
         var configured = configuration["BlobStore:RootPath"];
+
+        // Path.GetFullPath(relativeValue) resolves against the OS process's current directory,
+        // NOT IWebHostEnvironment.ContentRootPath - the two are the same folder under `dotnet run`
+        // or a manually-launched exe (which is why this went unnoticed for a long time), but not
+        // for a real Windows Service, which Windows starts with its working directory at
+        // %SystemRoot%\System32 by default: a relative "data\blobs" landed at
+        // C:\Windows\System32\data\blobs instead of the install folder's own data\ subfolder, with
+        // no error anywhere. Anchor explicitly at ContentRootPath instead; only an already-rooted
+        // configured value passes through Path.GetFullPath (a no-op there) unchanged.
         _root = string.IsNullOrWhiteSpace(configured)
             ? Path.Combine(environment.ContentRootPath, "blobs")
-            : Path.GetFullPath(configured);
+            : Path.IsPathRooted(configured)
+                ? Path.GetFullPath(configured)
+                : Path.Combine(environment.ContentRootPath, configured);
         Directory.CreateDirectory(_root);
     }
 

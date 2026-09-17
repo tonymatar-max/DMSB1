@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.IdentityModel.Tokens;
@@ -52,7 +53,7 @@ builder.Services.AddDbContext<NexusDocsDbContext>((sp, options) =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Default")
         ?? "Data Source=nexusdocs.dev.db";
-    options.UseSqlite(connectionString);
+    options.UseSqlite(ResolveSqliteConnectionString(connectionString, builder.Environment.ContentRootPath));
 });
 
 // --- Tenancy ---------------------------------------------------------------------------------
@@ -98,11 +99,17 @@ builder.Services.AddScoped<IBlobStore, DiskBlobStore>();
 // change, silently making every previously-stored secret unrecoverable. Same config-driven
 // pattern as BlobStore:RootPath: explicit path wins, falls back to a folder under the content
 // root otherwise (so this still works with zero configuration in dev).
+// Path.GetFullPath(relativeValue) resolves against the OS process's current directory, not
+// ContentRootPath - the same bug class explained in ResolveSqliteConnectionString's doc comment
+// below. Anchor explicitly at ContentRootPath instead, only falling through to GetFullPath for an
+// already-absolute configured value (where it's a no-op).
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
-builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(
-    string.IsNullOrWhiteSpace(dataProtectionKeysPath)
-        ? Path.Combine(builder.Environment.ContentRootPath, "keys")
-        : Path.GetFullPath(dataProtectionKeysPath)));
+var resolvedKeysPath = string.IsNullOrWhiteSpace(dataProtectionKeysPath)
+    ? Path.Combine(builder.Environment.ContentRootPath, "keys")
+    : Path.IsPathRooted(dataProtectionKeysPath)
+        ? dataProtectionKeysPath
+        : Path.Combine(builder.Environment.ContentRootPath, dataProtectionKeysPath);
+builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(resolvedKeysPath));
 builder.Services.AddScoped<ISecretStore, DataProtectionSecretStore>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.IPdfSealer, NexusDocs.Api.Infrastructure.Sign.PdfOverlaySealer>();
 builder.Services.AddScoped<NexusDocs.Api.Infrastructure.Sign.SigningCeremonyService>();
@@ -273,6 +280,32 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+/// <summary>
+/// Rewrites a Sqlite connection string's "Data Source" to an absolute path, anchored at
+/// <paramref name="contentRootPath"/>, when it isn't already absolute.
+///
+/// Found the hard way: a relative "Data Source=data\nexusdocs.db" gets resolved by
+/// Microsoft.Data.Sqlite against the OS process's current working directory, NOT against
+/// ASP.NET Core's ContentRootPath — two different things that happen to be the same folder under
+/// `dotnet run` or a manually-launched exe (masking this for a long time), but are NOT the same
+/// once install-service.ps1 registers this as a real Windows Service: Windows starts a service
+/// with its working directory at %SystemRoot%\System32 by default, so the "relative" database
+/// silently landed at C:\Windows\System32\data\nexusdocs.db instead of the install folder's own
+/// data\ subfolder — a real customer's first login on a freshly-installed service would have
+/// hit an empty, unrelated database with no error of any kind. The exact same bug existed for
+/// BlobStore:RootPath (see DiskBlobStore.cs) and DataProtection:KeysPath (see below) — both fixed
+/// the same way.
+/// </summary>
+static string ResolveSqliteConnectionString(string connectionString, string contentRootPath)
+{
+    var builder = new SqliteConnectionStringBuilder(connectionString);
+    if (!string.IsNullOrWhiteSpace(builder.DataSource) && !Path.IsPathRooted(builder.DataSource))
+    {
+        builder.DataSource = Path.Combine(contentRootPath, builder.DataSource);
+    }
+    return builder.ConnectionString;
+}
 
 /// <summary>
 /// Adapts the settable NexusDocs.Api.Infrastructure.Tenancy.ICurrentTenantAccessor (populated by
